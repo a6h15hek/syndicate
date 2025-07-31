@@ -1,0 +1,7 @@
+Group Name: Syndicate
+Members: Quip, Oracle, Byte, Mika, Kira
+
+Support characters: 
+Manager -- code that drives everything 
+knowledge_creator -- knowledge base creator -- its work is to create a knowledge base for every personality
+real_world_interface -- interact with real world things, create a instruction for them to send to outer world.
