@@ -5,3 +5,29 @@ Support characters:
 Manager -- code that drives everything 
 knowledge_creator -- knowledge base creator -- its work is to create a knowledge base for every personality
 real_world_interface -- interact with real world things, create a instruction for them to send to outer world.
+
+
+
+# Create a virtual environment
+python3.11 -m venv venv
+
+# On macOS or Linux
+source venv/bin/activate
+
+# deactivate
+deactivate
+rm -rf venv
+
+pip3 install -r requirements.txt
+
+python main.py
+
+
+# Installation
+brew install python@3.11
+python3.11 -m venv venv # Create a new virtual environment using python3.11
+source venv/bin/activate # Activate the new, correct environment
+
+pip install -r requirements.txt
+
+python main.py
