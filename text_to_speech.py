@@ -3,14 +3,28 @@ import logging
 import random
 import sounddevice as sd
 from TTS.api import TTS
+import shutil
 import config
 
 class TextToSpeech:
     """Handles text-to-speech conversion using Coqui TTS."""
     def __init__(self):
         logging.info("Initializing TextToSpeech...")
+        self._check_dependencies()
         self.tts_instances = {} # Cache for loaded models
         self.voices = config.TTS_VOICES
+
+    def _check_dependencies(self):
+        """Checks for required system dependencies like espeak-ng."""
+        if not shutil.which("espeak-ng") and not shutil.which("espeak"):
+            logging.warning("="*80)
+            logging.warning("`espeak-ng` or `espeak` not found in your system's PATH.")
+            logging.warning("This is required by some TTS models for phonemization.")
+            logging.warning("Please install it to ensure all voices work correctly.")
+            logging.warning("  - On Debian/Ubuntu: sudo apt-get install espeak-ng")
+            logging.warning("  - On macOS (Homebrew): brew install espeak-ng")
+            logging.warning("  - On Windows: Download from https://github.com/espeak-ng/espeak-ng/releases")
+            logging.warning("="*80)
 
     def speak(self, text, personality=None):
         """Converts text to speech using a specified or random voice and plays it."""
@@ -43,7 +57,11 @@ class TextToSpeech:
             wav = tts_model.tts(text=text, speaker=speaker)
 
             # Play the audio
-            sd.play(wav, samplerate=tts_model.synthesizer.output_sample_rate)
+            sd.play(
+                wav,
+                samplerate=tts_model.synthesizer.output_sample_rate,
+                device=config.AUDIO_OUTPUT_DEVICE
+            )
             sd.wait()
             logging.info("Speech playback finished.")
         except Exception as e:

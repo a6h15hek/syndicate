@@ -28,6 +28,7 @@ brew install python@3.11
 python3.11 -m venv venv # Create a new virtual environment using python3.11
 source venv/bin/activate # Activate the new, correct environment
 
+pip install --upgrade pip
 pip install -r requirements.txt
 
-python main.py
+python3.11 main.py

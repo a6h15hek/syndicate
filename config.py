@@ -13,6 +13,11 @@ AUDIO_BLOCK_DURATION_SECONDS = 2 # Process audio in 2-second chunks
 AUDIO_SILENCE_THRESHOLD = 350 # Audio level below which is considered silence
 AUDIO_SILENCE_DURATION_SECONDS = 2 # How many seconds of silence indicates the end of speech
 
+# To specify a device, use its name (e.g., "MacBook Pro Microphone") or index (e.g., 0).
+# Set to None to use the system's default device.
+AUDIO_INPUT_DEVICE = None
+AUDIO_OUTPUT_DEVICE = None
+
 
 # --- Text-to-Speech (TTS) Settings ---
 # A mapping of personality names to their voice models.
@@ -20,14 +25,14 @@ AUDIO_SILENCE_DURATION_SECONDS = 2 # How many seconds of silence indicates the e
 TTS_VOICES = {
     # Mika: The Anima. Soft-spoken, caring, and deeply empathetic.
     # Voice: An expressive and warm female voice to convey genuine emotion and care.
-    "Mika": {
-        "model_name": "tts_models/en/jenny/jenny", "speaker": None
-    },
-
     # Kira: The Shadow. Dominant, ruthless, and controlled.
     # Voice: A deeper, authoritative male voice that sounds commanding and pragmatic.
     "Kira": {
         "model_name": "tts_models/en/vctk/vits", "speaker": "p227"
+    },
+    
+    "Mika": {
+        "model_name": "tts_models/en/jenny/jenny", "speaker": None
     },
 
     # Quip: The Persona. Effortlessly clever, sarcastic, and competitive.

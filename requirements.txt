@@ -3,3 +3,4 @@ TTS
 sounddevice
 numpy
 torch
+setuptools<81

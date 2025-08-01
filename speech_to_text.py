@@ -64,6 +64,7 @@ class SpeechToText:
 
         try:
             with sd.InputStream(
+                device=config.AUDIO_INPUT_DEVICE,
                 callback=audio_callback,
                 samplerate=config.AUDIO_SAMPLE_RATE,
                 channels=1,
