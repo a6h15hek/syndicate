@@ -1,130 +1,141 @@
 #!/bin/bash
 
-# ---
-# A script to set up and run the Python environment for the project.
-#
-# This script will:
-# 1. Check for and install Homebrew if it's missing.
-# 2. Check for and install python@3.11 using Homebrew.
-# 3. Create a virtual environment named 'venv' if it doesn't exist.
-# 4. Upgrade pip and install packages from requirements.txt.
-# 5. Run the main.py script and ensure it can be stopped with Ctrl+C.
-#
-# The script is designed to be idempotent, meaning it can be run multiple
-# times without causing issues. It checks for existing installations
-# and environments to avoid re-running unnecessary commands.
-# ---
+# --- Configuration ---
+PYTHON_CMD="python3"
+VENV_DIR="venv"
+PYTHON_SCRIPT="main.py" # Change this to the name of your python script
+MODEL_DIR="vosk-model-small-en-us-0.15"
+MODEL_URL="https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip"
+MODEL_ZIP_FILE="vosk-model-small-en-us-0.15.zip"
 
-# Initialize a variable to hold the Python process ID
-PYTHON_PID=""
-
-# Function to handle script interruption (Ctrl+C)
-cleanup() {
-    echo -e "\n\nScript interrupted. Exiting gracefully."
-
-    # If the PYTHON_PID variable is set and the process exists, kill it.
-    if [ -n "$PYTHON_PID" ] && ps -p $PYTHON_PID > /dev/null; then
-        echo "Stopping Python application (PID: $PYTHON_PID)..."
-        kill $PYTHON_PID
-    fi
-
-    # Deactivate virtual environment if it was activated by this script's context
-    if type deactivate &>/dev/null; then
-        deactivate
-    fi
-    exit 1
+# --- Helper Functions ---
+echo_info() {
+    echo "[INFO] $1"
 }
 
-# Trap SIGINT (Ctrl+C) and call the cleanup function
-trap cleanup SIGINT
+echo_error() {
+    echo "[ERROR] $1" >&2
+}
 
-# --- Step 1: Check for Homebrew ---
-echo "--- Checking for Homebrew ---"
-if ! command -v brew &> /dev/null; then
-    echo "Homebrew not found. Please install it from https://brew.sh/"
+# 1. Check if Python 3 is installed
+if ! command -v $PYTHON_CMD &> /dev/null; then
+    echo_error "Python 3 is not installed. Please install it to continue."
+    echo_info "On Debian/Ubuntu: sudo apt-get install python3 python3-pip python3-venv"
+    echo_info "On macOS (using Homebrew): brew install python"
     exit 1
 fi
-echo "Homebrew is installed."
-echo ""
+echo_info "Python 3 is installed."
 
-# --- Step 2: Check and Install Python 3.11 ---
-echo "--- Checking for Python 3.11 ---"
-# Check if python@3.11 is listed by brew. The command exits with 0 if found.
-if brew list python@3.11 &>/dev/null; then
-    echo "Python 3.11 is already installed via Homebrew."
-else
-    echo "Python 3.11 not found. Installing with Homebrew..."
-    brew install python@3.11
+# 2. Check for and create the virtual environment if it doesn't exist
+if [ ! -d "$VENV_DIR" ]; then
+    echo_info "Creating Python virtual environment in '$VENV_DIR'..."
+    $PYTHON_CMD -m venv $VENV_DIR
     if [ $? -ne 0 ]; then
-        echo "Failed to install Python 3.11. Please check your Homebrew setup."
+        echo_error "Failed to create virtual environment."
         exit 1
     fi
-    echo "Python 3.11 installed successfully."
-fi
-echo ""
-
-# --- Step 3: Check and Create Virtual Environment ---
-VENV_DIR="venv"
-echo "--- Checking for virtual environment ('$VENV_DIR') ---"
-if [ -d "$VENV_DIR" ]; then
-    echo "Virtual environment '$VENV_DIR' already exists."
 else
-    echo "Creating virtual environment '$VENV_DIR' with python3.11..."
-    python3.11 -m venv "$VENV_DIR"
-    if [ $? -ne 0 ]; then
-        echo "Failed to create virtual environment."
-        exit 1
-    fi
-    echo "Virtual environment created successfully."
+    echo_info "Virtual environment already exists."
 fi
-echo ""
 
-# --- Step 4: Activate Environment and Install Dependencies ---
-echo "--- Activating virtual environment and installing dependencies ---"
-
-# Activate the virtual environment for the rest of the script
+# 3. Activate the virtual environment and install dependencies
+# Activating the venv
 source "$VENV_DIR/bin/activate"
+echo_info "Virtual environment activated."
 
-# Upgrade pip
-echo "Upgrading pip..."
-pip install --upgrade pip
+echo_info "Upgrading pip to the latest version..."
+$PYTHON_CMD -m pip install --upgrade pip
+
+echo_info "Installing required packages: vosk, sounddevice..."
+pip install vosk sounddevice
 if [ $? -ne 0 ]; then
-    echo "Failed to upgrade pip."
-    cleanup
+    echo_error "Failed to install dependencies. Please check your internet connection and package names."
+    # Deactivate venv on failure
+    deactivate
     exit 1
 fi
+echo_info "Dependencies installed successfully."
 
-# Install requirements
-if [ -f "requirements.txt" ]; then
-    echo "Installing dependencies from requirements.txt..."
-    pip install -r requirements.txt
+# 4. Check for and download the Vosk model if it doesn't exist
+if [ ! -d "$MODEL_DIR" ]; then
+    echo_info "Vosk model not found. Attempting to download..."
+
+    # Check for wget and unzip, and install them if they are missing
+    if ! command -v wget &> /dev/null || ! command -v unzip &> /dev/null; then
+        echo_info "'wget' or 'unzip' not found. Attempting to install them..."
+        # OS-specific installation
+        if [[ "$(uname)" == "Darwin" ]]; then # macOS
+            if command -v brew &> /dev/null; then
+                echo_info "Using Homebrew to install wget..."
+                brew install wget
+            else
+                echo_error "Homebrew not found. Please install Homebrew to automatically install wget, or install wget manually."
+                deactivate
+                exit 1
+            fi
+        elif [[ "$(uname)" == "Linux" ]]; then # Linux
+            if command -v apt-get &> /dev/null; then
+                echo_info "Using apt-get to install wget and unzip. You may be prompted for your password."
+                sudo apt-get update
+                sudo apt-get install -y wget unzip
+            elif command -v yum &> /dev/null; then
+                echo_info "Using yum to install wget and unzip. You may be prompted for your password."
+                sudo yum install -y wget unzip
+            else
+                echo_error "Could not find apt-get or yum. Please install 'wget' and 'unzip' manually."
+                deactivate
+                exit 1
+            fi
+        else
+            echo_error "Unsupported OS. Please install 'wget' and 'unzip' manually."
+            deactivate
+            exit 1
+        fi
+
+        # Verify installation
+        if ! command -v wget &> /dev/null || ! command -v unzip &> /dev/null; then
+            echo_error "Failed to install 'wget' or 'unzip'. Please install them manually."
+            deactivate
+            exit 1
+        fi
+    fi
+    
+    # Download the model
+    echo_info "Downloading model from $MODEL_URL..."
+    wget $MODEL_URL
     if [ $? -ne 0 ]; then
-        echo "Failed to install dependencies from requirements.txt."
-        cleanup
+        echo_error "Failed to download the model."
+        deactivate
         exit 1
     fi
-    echo "Dependencies installed."
-else
-    echo "Warning: requirements.txt not found. Skipping dependency installation."
-fi
-echo ""
 
-# --- Step 5: Run the Python Application ---
-echo "--- Starting the application (main.py) ---"
-if [ -f "main.py" ]; then
-    # Run the python script in the background and store its PID
-    python3.11 main.py &
-    PYTHON_PID=$!
-    
-    # Wait for the python script to finish. 
-    # The 'trap' will interrupt this 'wait' command, allowing cleanup to run.
-    wait $PYTHON_PID
-else
-    echo "Error: main.py not found. Cannot start the application."
-    cleanup
+    # Unzip the model
+    echo_info "Unzipping model..."
+    unzip $MODEL_ZIP_FILE
+    if [ $? -ne 0 ]; then
+        echo_error "Failed to unzip the model."
+        deactivate
+        exit 1
+    fi
+
+    # Clean up the zip file
+    rm $MODEL_ZIP_FILE
+    echo_info "Model downloaded and unpacked successfully."
+fi
+
+# Final check for the model directory
+if [ ! -d "$MODEL_DIR" ]; then
+    echo_error "Vosk model directory '$MODEL_DIR' still not found after download attempt."
+    deactivate
     exit 1
 fi
+echo_info "Vosk model found."
 
-# Deactivate on normal exit
+# 5. Run the main Python script
+echo_info "Starting the speech recognition script..."
+echo_info "Press Ctrl+C to stop the application."
+$PYTHON_CMD $PYTHON_SCRIPT
+
+# Deactivate the virtual environment upon exiting the script
 deactivate
-echo -e "\n--- Script finished ---"
+echo_info "Virtual environment deactivated. Script finished."
