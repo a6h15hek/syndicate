@@ -1,62 +1,104 @@
 import sys
 import os
+import time
 from datetime import datetime
 from dotenv import load_dotenv
 from processor.speech_recognizer import VoskSpeechRecognizer
 
 # --- Load Environment Variables ---
-# Load variables from the .env file into the environment
 load_dotenv()
 
 # --- Configuration ---
-# Get the model path from environment variables.
-# This makes the application more flexible and avoids hardcoding paths.
 MODEL_DIR = os.getenv("VOSK_MODEL_PATH")
 LOG_FILE = "logs/speech_log.txt"
+
+# --- Advanced Recognizer Settings from .env ---
+# Fallback to default values if not set in .env
+SAMPLE_RATE = int(os.getenv("RECOGNIZER_SAMPLE_RATE", 16000))
+NOISE_CALIBRATION = float(os.getenv("NOISE_CALIBRATION_DURATION", 2.0))
+VAD_AGGRESSIVENESS = int(os.getenv("VAD_AGGRESSIVENESS", 1))
+SILENCE_THRESHOLD = float(os.getenv("SILENCE_THRESHOLD", 1.5))
+PHRASE_TIMEOUT = float(os.getenv("PHRASE_TIMEOUT", 5.0))
+
+
+class StatusLogger:
+    """A helper class for providing dynamic, single-line status updates in the console."""
+    def __init__(self):
+        self._last_text_len = 0
+        self._spinner_chars = "|/-\\"
+        self._spinner_index = 0
+
+    def update(self, text):
+        """Updates the status line with new text and a spinner."""
+        self._spinner_index = (self._spinner_index + 1) % len(self._spinner_chars)
+        spinner = self._spinner_chars[self._spinner_index]
+        
+        # Prepare the output string
+        output = f"\r[{spinner}] Listening... {text}"
+        
+        # Overwrite the previous line
+        sys.stdout.write(output.ljust(self._last_text_len))
+        sys.stdout.flush()
+        self._last_text_len = len(output)
+
+    def finalize(self, text):
+        """Prints a final message and clears the status line."""
+        # Clear the line completely and print the final text on a new line
+        sys.stdout.write(f"\r{' ' * self._last_text_len}\r")
+        sys.stdout.write(f"{text}\n")
+        sys.stdout.flush()
+        self._last_text_len = 0
+
+    def show_ready(self):
+        """Shows the initial ready message."""
+        self.update("") # Start with a clean listening line
 
 def main():
     """
     Main function to initialize the speech recognizer and process the output.
     """
-    # --- Pre-run Checks ---
-    # Ensure the model path is actually set in the .env file before proceeding.
     if not MODEL_DIR:
         print("[ERROR] VOSK_MODEL_PATH is not set in the .env file.", file=sys.stderr)
-        print("[INFO] Please ensure a .env file exists with the VOSK_MODEL_PATH variable.", file=sys.stderr)
         sys.exit(1)
 
-    # Create logs directory if it doesn't exist to prevent errors on first run.
     os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
 
     try:
-        # Initialize the speech recognizer with the path from the .env file.
-        recognizer = VoskSpeechRecognizer(model_path=MODEL_DIR)
+        recognizer = VoskSpeechRecognizer(
+            model_path=MODEL_DIR,
+            samplerate=SAMPLE_RATE,
+            vad_aggressiveness=VAD_AGGRESSIVENESS
+        )
+        
         print(f"[INFO] Speech recognizer initialized with model: {MODEL_DIR}")
+        print(f"[INFO] VAD Aggressiveness: {VAD_AGGRESSIVENESS}, Silence Threshold: {SILENCE_THRESHOLD}s")
         print(f"[INFO] Logging complete statements to '{LOG_FILE}'")
-        print("[INFO] Ready to listen. Press Ctrl+C to stop.")
+        print("[INFO] Press Ctrl+C to stop.")
 
-        # Start listening and processing speech with advanced pause detection.
-        # silence_threshold: How many seconds of silence determines the end of a phrase.
-        # phrase_timeout: How long to listen for a single phrase before finalizing.
-        for result_type, text in recognizer.listen_and_transcribe(silence_threshold=2.0, phrase_timeout=5.0):
+        status_logger = StatusLogger()
+        
+        transcription_generator = recognizer.listen_and_transcribe(
+            silence_threshold=SILENCE_THRESHOLD,
+            phrase_timeout=PHRASE_TIMEOUT,
+            calibration_duration=NOISE_CALIBRATION
+        )
+        
+        status_logger.show_ready()
+
+        for result_type, text in transcription_generator:
             if result_type == "partial":
-                # Print partial results in real-time for immediate feedback.
-                # Using carriage return to overwrite the line for a cleaner look.
-                sys.stdout.write(f"\rListening... {text}")
-                sys.stdout.flush()
+                status_logger.update(text)
             elif result_type == "final" and text:
-                # A complete sentence has been detected after a pause.
                 timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                log_message = f"[{timestamp}] Complete Statement: {text}"
+                log_message = f"[{timestamp}] Finalized: {text}"
                 
-                # Print the final, organized statement to the console.
-                # The spaces at the end clear the previous "Listening..." text.
-                sys.stdout.write(f"\r{log_message}              \n")
-                sys.stdout.flush()
-
-                # Log the complete statement to a file for record-keeping.
+                status_logger.finalize(log_message)
+                
                 with open(LOG_FILE, "a") as log_file:
                     log_file.write(log_message + "\n")
+                
+                # Show the listening status again for the next utterance
+                status_logger.show_ready()
 
     except KeyboardInterrupt:
         print("\n[INFO] Stopping listener...")

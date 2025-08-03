@@ -75,10 +75,10 @@ echo_info "Dependencies installed successfully."
 if [ ! -d "$MODEL_DIR" ]; then
     echo_info "Vosk model not found at '$MODEL_DIR'. Attempting to download..."
     
-    # Create parent directory for models
+    # Create models directory if it doesn't exist
     mkdir -p models
-
-    # Check for wget and unzip, which are required for downloading
+    
+    # Check for required commands
     if ! command -v wget &> /dev/null || ! command -v unzip &> /dev/null; then
         echo_error "'wget' and 'unzip' are required. Please install them."
         echo_info "On Debian/Ubuntu: sudo apt-get install wget unzip"
@@ -87,34 +87,28 @@ if [ ! -d "$MODEL_DIR" ]; then
         exit 1
     fi
     
-    # Download the model using the URL from the .env file
+    # Download to models directory
     echo_info "Downloading model from $MODEL_URL..."
-    wget -q --show-progress -O "$MODEL_ZIP_FILE" "$MODEL_URL"
+    wget -q --show-progress -P models/ "$MODEL_URL"
     if [ $? -ne 0 ]; then
         echo_error "Failed to download the model."
         deactivate
         exit 1
     fi
 
-    # Unzip the model into the 'models' directory
+    # Unzip in models directory
     echo_info "Unzipping model..."
-    unzip -q "$MODEL_ZIP_FILE" -d "models/"
+    unzip -q "models/$MODEL_ZIP_FILE" -d "models/"
     if [ $? -ne 0 ]; then
         echo_error "Failed to unzip the model."
-        rm "$MODEL_ZIP_FILE" # Clean up failed download
+        rm "models/$MODEL_ZIP_FILE" # Clean up failed download
         deactivate
         exit 1
     fi
     
-    # Rename the unzipped folder to match the VOSK_MODEL_PATH if needed
-    if [ -d "models/$MODEL_UNZIPPED_NAME" ] && [ "$MODEL_DIR" != "models/$MODEL_UNZIPPED_NAME" ]; then
-        echo_info "Renaming model directory to '$MODEL_DIR'..."
-        mv "models/$MODEL_UNZIPPED_NAME" "$MODEL_DIR"
-    fi
-
-    # Clean up the downloaded zip file
-    rm "$MODEL_ZIP_FILE"
-    echo_info "Model downloaded and unpacked successfully."
+    # Clean up the zip file
+    rm "models/$MODEL_ZIP_FILE"
+    echo_info "Model downloaded and unpacked successfully in 'models/'."
 fi
 
 # Final check for the model directory
