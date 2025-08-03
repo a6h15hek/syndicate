@@ -1,23 +1,38 @@
 #!/bin/bash
 
-# --- Configuration ---
-PYTHON_CMD="python3"
-VENV_DIR="venv"
-PYTHON_SCRIPT="main.py"
-# Updated to use the medium Indian-English model
-MODEL_DIR="models/vosk-model-en-in-0.5"
-MODEL_URL="https://alphacephei.com/vosk/models/vosk-model-en-in-0.5.zip"
-MODEL_ZIP_FILE="vosk-model-en-in-0.5.zip"
-MODEL_UNZIPPED_NAME="vosk-model-en-in-0.5" # The name of the folder inside the zip
-
 # --- Helper Functions ---
 echo_info() {
+    # Blue color for informational messages
     echo -e "\e[34m[INFO]\e[0m $1"
 }
 
 echo_error() {
+    # Red color for error messages
     echo -e "\e[31m[ERROR]\e[0m $1" >&2
 }
+
+# --- Load Environment Variables ---
+# Check for the .env file and load its variables. This is crucial for configuration.
+if [ -f .env ]; then
+    echo_info "Loading environment variables from .env file..."
+    # Export the variables from .env to be available to this script
+    export $(cat .env | sed 's/#.*//g' | xargs)
+else
+    echo_error ".env file not found. Please create one with VOSK_MODEL_PATH and VOSK_MODEL_URL."
+    exit 1
+fi
+
+# --- Configuration (from .env) ---
+PYTHON_CMD="python3"
+VENV_DIR="venv"
+PYTHON_SCRIPT="main.py"
+
+# Model configuration is now dynamically set from the loaded environment variables
+MODEL_DIR=${VOSK_MODEL_PATH}
+MODEL_URL=${VOSK_MODEL_URL}
+MODEL_ZIP_FILE=$(basename "$MODEL_URL")
+# The name of the folder inside the zip file (e.g., "vosk-model-en-in-0.5")
+MODEL_UNZIPPED_NAME="${MODEL_ZIP_FILE%.zip}"
 
 # 1. Check if Python 3 is installed
 if ! command -v $PYTHON_CMD &> /dev/null; then
@@ -58,12 +73,12 @@ echo_info "Dependencies installed successfully."
 
 # 4. Check for and download the Vosk model if it doesn't exist
 if [ ! -d "$MODEL_DIR" ]; then
-    echo_info "Vosk model not found. Attempting to download..."
+    echo_info "Vosk model not found at '$MODEL_DIR'. Attempting to download..."
     
     # Create parent directory for models
     mkdir -p models
 
-    # Check for wget and unzip
+    # Check for wget and unzip, which are required for downloading
     if ! command -v wget &> /dev/null || ! command -v unzip &> /dev/null; then
         echo_error "'wget' and 'unzip' are required. Please install them."
         echo_info "On Debian/Ubuntu: sudo apt-get install wget unzip"
@@ -72,7 +87,7 @@ if [ ! -d "$MODEL_DIR" ]; then
         exit 1
     fi
     
-    # Download the model
+    # Download the model using the URL from the .env file
     echo_info "Downloading model from $MODEL_URL..."
     wget -q --show-progress -O "$MODEL_ZIP_FILE" "$MODEL_URL"
     if [ $? -ne 0 ]; then
@@ -81,7 +96,7 @@ if [ ! -d "$MODEL_DIR" ]; then
         exit 1
     fi
 
-    # Unzip the model
+    # Unzip the model into the 'models' directory
     echo_info "Unzipping model..."
     unzip -q "$MODEL_ZIP_FILE" -d "models/"
     if [ $? -ne 0 ]; then
@@ -91,13 +106,13 @@ if [ ! -d "$MODEL_DIR" ]; then
         exit 1
     fi
     
-    # Rename the unzipped folder if necessary
+    # Rename the unzipped folder to match the VOSK_MODEL_PATH if needed
     if [ -d "models/$MODEL_UNZIPPED_NAME" ] && [ "$MODEL_DIR" != "models/$MODEL_UNZIPPED_NAME" ]; then
         echo_info "Renaming model directory to '$MODEL_DIR'..."
         mv "models/$MODEL_UNZIPPED_NAME" "$MODEL_DIR"
     fi
 
-    # Clean up the zip file
+    # Clean up the downloaded zip file
     rm "$MODEL_ZIP_FILE"
     echo_info "Model downloaded and unpacked successfully."
 fi
@@ -108,7 +123,7 @@ if [ ! -d "$MODEL_DIR" ]; then
     deactivate
     exit 1
 fi
-echo_info "Vosk Indian English model found."
+echo_info "Vosk model found at '$MODEL_DIR'."
 
 # 5. Run the main Python script
 echo_info "Starting the speech recognition script..."

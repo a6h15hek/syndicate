@@ -1,3 +1,15 @@
-models/
+# Environment variables
+.env
+
+# Python virtual environment
 venv/
+
+# Vosk models
+models/
+
+# Log files
 logs/
+
+# Python cache
+__pycache__/
+*.pyc
