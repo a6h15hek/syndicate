@@ -14,37 +14,47 @@ LOG_FILE = "logs/speech_log.txt"
 SAMPLE_RATE = int(os.getenv("RECOGNIZER_SAMPLE_RATE", 16000))
 NOISE_CALIBRATION = float(os.getenv("NOISE_CALIBRATION_DURATION", 2.0))
 VAD_AGGRESSIVENESS = int(os.getenv("VAD_AGGRESSIVENESS", 1))
-SILENCE_THRESHOLD = float(os.getenv("SILENCE_THRESHOLD", 1.5))
-PHRASE_TIMEOUT = float(os.getenv("PHRASE_TIMEOUT", 5.0))
+SILENCE_THRESHOLD = float(os.getenv("SILENCE_THRESHOLD", 2.5))
+PHRASE_TIMEOUT = float(os.getenv("PHRASE_TIMEOUT", 15.0))
 
 
 class StatusLogger:
-    """A helper class for providing dynamic, single-line status updates in the console."""
+    """
+    A helper class for providing robust, single-line status updates in the console
+    using ANSI escape codes for a cleaner user experience.
+    """
     def __init__(self):
-        self._last_text_len = 0
         self._spinner_chars = "|/-\\"
         self._spinner_index = 0
+        # ANSI escape codes for cursor control and line clearing
+        self.CLEAR_LINE = "\x1b[2K"
+        self.CURSOR_TO_START = "\r"
 
     def update(self, text):
-        """Updates the status line with new text and a spinner."""
+        """
+        Updates the status line with new text and a spinner.
+        This method clears the current line completely before drawing the new status,
+        preventing visual artifacts.
+        """
         self._spinner_index = (self._spinner_index + 1) % len(self._spinner_chars)
         spinner = self._spinner_chars[self._spinner_index]
         
         # Prepare the output string
-        output = f"\r[{spinner}] Listening... {text}"
+        output = f"[{spinner}] Listening... {text}"
         
-        # Overwrite the previous line
-        sys.stdout.write(output.ljust(self._last_text_len))
+        # Use ANSI codes to clear the line and write the new output
+        sys.stdout.write(self.CURSOR_TO_START + self.CLEAR_LINE + output)
         sys.stdout.flush()
-        self._last_text_len = len(output)
 
     def finalize(self, text):
-        """Prints a final message and clears the status line."""
-        # Clear the line completely and print the final text on a new line
-        sys.stdout.write(f"\r{' ' * self._last_text_len}\r")
+        """
+        Clears the status line completely and prints a final message on a new line.
+        """
+        # Clear the "Listening..." line
+        sys.stdout.write(self.CURSOR_TO_START + self.CLEAR_LINE)
+        # Print the final, permanent message
         sys.stdout.write(f"{text}\n")
         sys.stdout.flush()
-        self._last_text_len = 0
 
     def show_ready(self):
         """Shows the initial ready message."""
@@ -62,6 +72,7 @@ def start_listening():
     os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
 
     try:
+        # Use the updated settings from the .env file
         recognizer = VoskSpeechRecognizer(
             model_path=MODEL_DIR,
             samplerate=SAMPLE_RATE,
@@ -69,7 +80,7 @@ def start_listening():
         )
         
         print(f"[INFO] Speech recognizer initialized with model: {MODEL_DIR}")
-        print(f"[INFO] VAD Aggressiveness: {VAD_AGGRESSIVENESS}, Silence Threshold: {SILENCE_THRESHOLD}s")
+        print(f"[INFO] VAD Aggressiveness: {VAD_AGGRESSIVENESS}, Silence Threshold: {SILENCE_THRESHOLD}s, Phrase Timeout: {PHRASE_TIMEOUT}s")
         print(f"[INFO] Logging complete statements to '{LOG_FILE}'")
         print("[INFO] Press Ctrl+C to stop.")
 
