@@ -3,18 +3,20 @@
 # --- Configuration ---
 PYTHON_CMD="python3"
 VENV_DIR="venv"
-PYTHON_SCRIPT="main.py" # Change this to the name of your python script
-MODEL_DIR="models/vosk-model-small-en-us-0.15"
-MODEL_URL="https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip"
-MODEL_ZIP_FILE="vosk-model-small-en-us-0.15.zip"
+PYTHON_SCRIPT="main.py"
+# Updated to use the medium Indian-English model
+MODEL_DIR="models/vosk-model-en-in-0.5"
+MODEL_URL="https://alphacephei.com/vosk/models/vosk-model-en-in-0.5.zip"
+MODEL_ZIP_FILE="vosk-model-en-in-0.5.zip"
+MODEL_UNZIPPED_NAME="vosk-model-en-in-0.5" # The name of the folder inside the zip
 
 # --- Helper Functions ---
 echo_info() {
-    echo "[INFO] $1"
+    echo -e "\e[34m[INFO]\e[0m $1"
 }
 
 echo_error() {
-    echo "[ERROR] $1" >&2
+    echo -e "\e[31m[ERROR]\e[0m $1" >&2
 }
 
 # 1. Check if Python 3 is installed
@@ -39,18 +41,16 @@ else
 fi
 
 # 3. Activate the virtual environment and install dependencies
-# Activating the venv
 source "$VENV_DIR/bin/activate"
 echo_info "Virtual environment activated."
 
 echo_info "Upgrading pip to the latest version..."
-$PYTHON_CMD -m pip install --upgrade pip
+pip install --upgrade pip > /dev/null
 
-echo_info "Installing required packages: vosk, sounddevice..."
-pip install vosk sounddevice
+echo_info "Installing required packages from requirements.txt..."
+pip install -r requirements.txt
 if [ $? -ne 0 ]; then
-    echo_error "Failed to install dependencies. Please check your internet connection and package names."
-    # Deactivate venv on failure
+    echo_error "Failed to install dependencies from requirements.txt."
     deactivate
     exit 1
 fi
@@ -59,50 +59,22 @@ echo_info "Dependencies installed successfully."
 # 4. Check for and download the Vosk model if it doesn't exist
 if [ ! -d "$MODEL_DIR" ]; then
     echo_info "Vosk model not found. Attempting to download..."
+    
+    # Create parent directory for models
+    mkdir -p models
 
-    # Check for wget and unzip, and install them if they are missing
+    # Check for wget and unzip
     if ! command -v wget &> /dev/null || ! command -v unzip &> /dev/null; then
-        echo_info "'wget' or 'unzip' not found. Attempting to install them..."
-        # OS-specific installation
-        if [[ "$(uname)" == "Darwin" ]]; then # macOS
-            if command -v brew &> /dev/null; then
-                echo_info "Using Homebrew to install wget..."
-                brew install wget
-            else
-                echo_error "Homebrew not found. Please install Homebrew to automatically install wget, or install wget manually."
-                deactivate
-                exit 1
-            fi
-        elif [[ "$(uname)" == "Linux" ]]; then # Linux
-            if command -v apt-get &> /dev/null; then
-                echo_info "Using apt-get to install wget and unzip. You may be prompted for your password."
-                sudo apt-get update
-                sudo apt-get install -y wget unzip
-            elif command -v yum &> /dev/null; then
-                echo_info "Using yum to install wget and unzip. You may be prompted for your password."
-                sudo yum install -y wget unzip
-            else
-                echo_error "Could not find apt-get or yum. Please install 'wget' and 'unzip' manually."
-                deactivate
-                exit 1
-            fi
-        else
-            echo_error "Unsupported OS. Please install 'wget' and 'unzip' manually."
-            deactivate
-            exit 1
-        fi
-
-        # Verify installation
-        if ! command -v wget &> /dev/null || ! command -v unzip &> /dev/null; then
-            echo_error "Failed to install 'wget' or 'unzip'. Please install them manually."
-            deactivate
-            exit 1
-        fi
+        echo_error "'wget' and 'unzip' are required. Please install them."
+        echo_info "On Debian/Ubuntu: sudo apt-get install wget unzip"
+        echo_info "On macOS (using Homebrew): brew install wget"
+        deactivate
+        exit 1
     fi
     
     # Download the model
     echo_info "Downloading model from $MODEL_URL..."
-    wget $MODEL_URL
+    wget -q --show-progress -O "$MODEL_ZIP_FILE" "$MODEL_URL"
     if [ $? -ne 0 ]; then
         echo_error "Failed to download the model."
         deactivate
@@ -111,15 +83,22 @@ if [ ! -d "$MODEL_DIR" ]; then
 
     # Unzip the model
     echo_info "Unzipping model..."
-    unzip $MODEL_ZIP_FILE
+    unzip -q "$MODEL_ZIP_FILE" -d "models/"
     if [ $? -ne 0 ]; then
         echo_error "Failed to unzip the model."
+        rm "$MODEL_ZIP_FILE" # Clean up failed download
         deactivate
         exit 1
     fi
+    
+    # Rename the unzipped folder if necessary
+    if [ -d "models/$MODEL_UNZIPPED_NAME" ] && [ "$MODEL_DIR" != "models/$MODEL_UNZIPPED_NAME" ]; then
+        echo_info "Renaming model directory to '$MODEL_DIR'..."
+        mv "models/$MODEL_UNZIPPED_NAME" "$MODEL_DIR"
+    fi
 
     # Clean up the zip file
-    rm $MODEL_ZIP_FILE
+    rm "$MODEL_ZIP_FILE"
     echo_info "Model downloaded and unpacked successfully."
 fi
 
@@ -129,12 +108,12 @@ if [ ! -d "$MODEL_DIR" ]; then
     deactivate
     exit 1
 fi
-echo_info "Vosk model found."
+echo_info "Vosk Indian English model found."
 
 # 5. Run the main Python script
 echo_info "Starting the speech recognition script..."
 echo_info "Press Ctrl+C to stop the application."
-$PYTHON_CMD $PYTHON_SCRIPT
+$PYTHON_CMD -u $PYTHON_SCRIPT # -u for unbuffered output
 
 # Deactivate the virtual environment upon exiting the script
 deactivate
