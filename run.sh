@@ -4,7 +4,7 @@
 PYTHON_CMD="python3"
 VENV_DIR="venv"
 PYTHON_SCRIPT="main.py" # Change this to the name of your python script
-MODEL_DIR="vosk-model-small-en-us-0.15"
+MODEL_DIR="models/vosk-model-small-en-us-0.15"
 MODEL_URL="https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip"
 MODEL_ZIP_FILE="vosk-model-small-en-us-0.15.zip"
 

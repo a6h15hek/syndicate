@@ -4,7 +4,7 @@ from processor.speech_recognizer import VoskSpeechRecognizer
 
 # --- Configuration ---
 MODEL_DIR = "models/vosk-model-small-en-us-0.15"
-LOG_FILE = "speech_log.txt"
+LOG_FILE = "logs/speech_log.txt"
 
 def main():
     """
