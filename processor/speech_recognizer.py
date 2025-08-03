@@ -20,7 +20,7 @@ class VoskSpeechRecognizer:
 
         Args:
             model_path (str): Path to the Vosk model directory.
-            samplerate (int): The sample rate for the audio stream. Must be 8000, 16000, 32000, or 48000.
+            samplerate (int): The sample rate for the audio stream. Must match the model's training.
             device (int, optional): Input device ID. Defaults to the system's default device.
             vad_aggressiveness (int): VAD aggressiveness (0-3). 3 is most aggressive.
         """
@@ -60,9 +60,11 @@ class VoskSpeechRecognizer:
         print("[INFO] Calibration complete. Ready to listen.")
 
 
-    def listen_and_transcribe(self, silence_threshold=1.5, phrase_timeout=4.0, calibration_duration=2.0):
+    def listen_and_transcribe(self, silence_threshold=2.0, phrase_timeout=10.0, calibration_duration=2.0):
         """
-        Captures audio and yields transcription results with VAD-based noise filtering.
+        Captures audio and yields transcription results with a robust VAD-based endpointing logic.
+        This new logic waits for a clear pause (silence) before finalizing a sentence,
+        preventing premature cut-offs during natural conversation.
 
         Args:
             silence_threshold (float): Seconds of silence to consider a phrase complete.
@@ -74,69 +76,62 @@ class VoskSpeechRecognizer:
         """
         recognizer = vosk.KaldiRecognizer(self.model, self.samplerate)
         
-        # The blocksize must be a multiple of the VAD frame size
+        # The blocksize must be a multiple of the VAD frame size for webrtcvad
         with sd.RawInputStream(samplerate=self.samplerate, blocksize=self.vad_frame_size, device=self.device,
                                dtype='int16', channels=1, callback=self._audio_callback):
             
             self._calibrate_noise(calibration_duration)
 
-            last_speech_time = time.time()
             is_speaking = False
-            speech_buffer = deque()
+            last_speech_time = time.time()
+            phrase_start_time = time.time()
             
             while True:
                 try:
+                    # Use a timeout to allow checking for silence even when no new audio comes in
                     data = self.q.get(timeout=0.1)
                     
-                    # Use VAD to check if the frame contains speech
                     is_speech_in_frame = self.vad.is_speech(data, self.samplerate)
 
+                    # Process the audio frame
+                    if recognizer.AcceptWaveform(data):
+                        # This is an intermediate result from Vosk. We get the partial text but
+                        # wait for our own silence detection to finalize the full utterance.
+                        partial_result = json.loads(recognizer.PartialResult())
+                        if partial_result.get('partial'):
+                            yield "partial", partial_result['partial']
+                    
                     if is_speech_in_frame:
                         if not is_speaking:
+                            # Detected start of a new phrase
                             is_speaking = True
-                        speech_buffer.append(data)
+                            phrase_start_time = time.time()
                         last_speech_time = time.time()
-                    elif is_speaking:
-                        # Not speech, but we were just speaking, so add to buffer briefly
-                        speech_buffer.append(data)
-
-                    # Process the buffered audio
-                    while speech_buffer:
-                        frame = speech_buffer.popleft()
-                        if recognizer.AcceptWaveform(frame):
-                            result_json = json.loads(recognizer.Result())
-                            final_text = result_json.get('text', '')
-                            if final_text:
-                                yield "final", final_text
-                                is_speaking = False
-                        else:
-                            result_json = json.loads(recognizer.PartialResult())
-                            partial_text = result_json.get('partial', '')
-                            if partial_text:
-                                yield "partial", partial_text
-                    
-                    # Check for silence timeout to finalize the phrase
-                    time_since_last_speech = time.time() - last_speech_time
-                    current_partial_text = json.loads(recognizer.PartialResult()).get('partial', '')
-
-                    if is_speaking and time_since_last_speech > silence_threshold:
-                        # Silence detected after speech, finalize the phrase
-                        is_speaking = False
-                        if current_partial_text:
-                            yield "final", current_partial_text
-                            recognizer.Reset() # Reset to start fresh
-
-                    # Force finalize if the phrase is too long
-                    if is_speaking and time_since_last_speech > phrase_timeout:
-                        is_speaking = False
-                        if current_partial_text:
-                            yield "final", current_partial_text
-                            recognizer.Reset()
-
 
                 except queue.Empty:
-                    # No audio data, just continue the loop
-                    continue
+                    # No new audio. This is where we check if a phrase has ended.
+                    pass
                 except Exception as e:
                     print(f"[ERROR] Error in speech recognition stream: {e}", file=sys.stderr)
                     break
+
+                # Check for end-of-speech conditions ONLY if we have been speaking.
+                if is_speaking:
+                    time_since_last_speech = time.time() - last_speech_time
+                    phrase_duration = time.time() - phrase_start_time
+                    
+                    # FINALIZATION LOGIC:
+                    # A phrase is considered final if EITHER:
+                    # 1. A period of silence is detected (time_since_last_speech > silence_threshold)
+                    # 2. The phrase has been going on for too long (phrase_duration > phrase_timeout)
+                    if time_since_last_speech > silence_threshold or phrase_duration > phrase_timeout:
+                        # Use FinalResult() which gets the best possible transcription and resets the recognizer.
+                        final_result_json = json.loads(recognizer.FinalResult())
+                        final_text = final_result_json.get('text', '')
+                        
+                        if final_text:
+                            yield "final", final_text
+                        
+                        # Reset state for the next utterance.
+                        is_speaking = False
+
