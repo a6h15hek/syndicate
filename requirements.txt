@@ -1,6 +1,34 @@
-vosk
-sounddevice
-numpy
-cffi
-python-dotenv
-webrtcvad-wheels
+# Core speech recognition
+vosk>=1.0.15
+sounddevice>=0.4.6
+numpy>=1.21.0
+
+# Audio processing and VAD
+webrtcvad-wheels>=2.0.10
+scipy>=1.7.0
+
+# Configuration and utilities
+python-dotenv>=0.19.0
+cffi>=1.15.0
+
+# Text processing and NLP
+nltk>=3.7
+spellchecker>=0.4
+textdistance>=4.2.2
+
+# System and performance
+psutil>=5.8.0
+colorama>=0.4.4
+
+# Logging and monitoring
+rich>=12.0.0
+tqdm>=4.62.0
+
+# Development and testing (optional)
+pytest>=6.2.5
+black>=21.12b0
+flake8>=4.0.1
+
+# Audio format support (optional)
+pydub>=0.25.1
+librosa>=0.8.1

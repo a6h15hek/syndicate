@@ -1,0 +1,59 @@
+{
+  "priority_names": {
+    "quip": "Quip",
+    "kwip": "Quip",
+    "kip": "Quip",
+    "oracle": "Oracle",
+    "orical": "Oracle",
+    "oracal": "Oracle",
+    "byte": "Byte",
+    "bit": "Byte",
+    "byt": "Byte",
+    "mika": "Mika",
+    "meeka": "Mika",
+    "micah": "Mika",
+    "kira": "Kira",
+    "kera": "Kira",
+    "kyra": "Kira"
+  },
+  "technical_terms": {
+    "api": "API",
+    "a p i": "API",
+    "database": "database",
+    "data base": "database",
+    "server": "server",
+    "client": "client",
+    "frontend": "frontend",
+    "front end": "frontend",
+    "backend": "backend",
+    "back end": "backend",
+    "microservices": "microservices",
+    "micro services": "microservices"
+  },
+  "common_corrections": {
+    "artifical": "artificial",
+    "intelligance": "intelligence",
+    "recieve": "receive",
+    "seperate": "separate",
+    "definitly": "definitely",
+    "occured": "occurred",
+    "priviledge": "privilege",
+    "accomodate": "accommodate",
+    "neccessary": "necessary",
+    "succesful": "successful"
+  },
+  "context_phrases": {
+    "machine learning": ["machine learning", "ML"],
+    "natural language processing": ["natural language processing", "NLP"],
+    "artificial intelligence": ["artificial intelligence", "AI"],
+    "user interface": ["user interface", "UI"],
+    "user experience": ["user experience", "UX"]
+  },
+  "domain_specific": {
+    "speech recognition": "speech recognition",
+    "voice to text": "voice to text",
+    "transcription": "transcription",
+    "acoustic model": "acoustic model",
+    "language model": "language model"
+  }
+}
