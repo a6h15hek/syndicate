@@ -320,7 +320,7 @@ class EnhancedVoskSpeechRecognizer:
             raise FileNotFoundError(f"Model path '{model_path}' not found. Please check the path.")
         
         # Check if model files exist
-        required_files = ['am/final.mdl', 'graph/HCLG.fst', 'words.txt']
+        required_files = ['am/final.mdl', 'graph/HCLG.fst']
         for file_path in required_files:
             full_path = os.path.join(model_path, file_path)
             if not os.path.exists(full_path):

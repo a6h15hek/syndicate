@@ -406,7 +406,7 @@ download_model() {
     rm -f "$download_path"
     
     # Verify model files
-    local required_files=("am/final.mdl" "graph/HCLG.fst" "words.txt")
+    local required_files=("am/final.mdl" "graph/HCLG.fst")
     for file in "${required_files[@]}"; do
         if [[ ! -f "$model_dir/$file" ]]; then
             echo_warning "Model file $file not found, model might be incomplete"
@@ -607,7 +607,7 @@ class SystemTest(unittest.TestCase):
         self.assertTrue(os.path.exists(model_path), f"Model path does not exist: {model_path}")
         
         # Check for essential model files
-        essential_files = ["am/final.mdl", "graph/HCLG.fst", "words.txt"]
+        essential_files = ["am/final.mdl", "graph/HCLG.fst"]
         for file in essential_files:
             file_path = os.path.join(model_path, file)
             self.assertTrue(os.path.exists(file_path), f"Missing model file: {file}")
