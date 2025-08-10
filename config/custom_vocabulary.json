@@ -1,0 +1,29 @@
+{
+  "priority_names": {
+    "quip": "Quip",
+    "kwip": "Quip",
+    "kip": "Quip",
+    "oracle": "Oracle",
+    "orical": "Oracle",
+    "oracal": "Oracle",
+    "byte": "Byte",
+    "mika": "Mika",
+    "kira": "Kira"
+  },
+  "technical_terms": {
+    "api": "API",
+    "database": "database",
+    "server": "server",
+    "client": "client",
+    "frontend": "frontend",
+    "backend": "backend",
+    "microservices": "microservices"
+  },
+  "common_corrections": {
+    "artifical": "artificial",
+    "intelligance": "intelligence",
+    "recieve": "receive",
+    "seperate": "separate",
+    "definitly": "definitely"
+  }
+}

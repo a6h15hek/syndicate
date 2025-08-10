@@ -382,14 +382,14 @@ class EnhancedVoskSpeechRecognizer:
                 logging.warning(f"Audio callback status: {status}")
         
         try:
-            # Convert to proper format and apply processing
-            audio_data = np.array(indata[:, 0], dtype=np.float32) if indata.ndim > 1 else indata
-            audio_data = (audio_data * 32767).astype(np.int16)  # Convert to int16
+            # Convert the CFFI buffer to a NumPy array for processing.
+            # The stream is opened with dtype='int16', so we use that here.
+            audio_data_np = np.frombuffer(indata, dtype=np.int16)
             
             # Apply audio processing
-            processed_audio = self.audio_processor.process_audio(audio_data)
+            processed_audio = self.audio_processor.process_audio(audio_data_np)
             
-            # Add to queue if not full
+            # Add to queue if not full. The queue expects bytes.
             if self.audio_queue.qsize() < self.buffer_size:
                 self.audio_queue.put(bytes(processed_audio), block=False)
             else:
