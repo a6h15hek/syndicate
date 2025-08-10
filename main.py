@@ -1,5 +1,5 @@
 from dotenv import load_dotenv
-from controller import speech
+from controller.speech import SpeechRecognitionController
 
 def main():
     """
@@ -7,7 +7,10 @@ def main():
     from the speech controller.
     """
     load_dotenv()
-    speech.start_listening()
+    # Create an instance of the controller
+    controller = SpeechRecognitionController()
+    # Call the start_listening method on the instance
+    controller.start_listening()
 
 if __name__ == "__main__":
     main()
