@@ -19,7 +19,6 @@ class VoiceController:
         
         # --- Configuration from .env ---
         self.tts_enabled = os.getenv("TTS_ENABLED", "true").lower() == "true"
-        self.introductions_enabled = os.getenv("TTS_INTRODUCTION_ENABLED", "true").lower() == "true"
         device_id = os.getenv("TTS_DEVICE")
 
         self.synthesizer = None
@@ -45,33 +44,6 @@ class VoiceController:
     def is_available(self):
         """Checks if the TTS system is available and ready."""
         return self.synthesizer is not None
-
-    def introduce_personalities(self):
-        """Has all personalities introduce themselves sequentially."""
-        if not self.is_available():
-            log.warning("Cannot run introductions; TTS system is not available.")
-            return
-
-        if not self.introductions_enabled:
-            log.info("Personality introductions are disabled in the configuration.")
-            return
-            
-        log.info("Starting personality introductions...")
-        
-        try:
-            # Introductions are queued and will play sequentially
-            self.oracle.speak("Greetings. I am Oracle, keeper of wisdom and foresight.")
-            self.kira.speak("I am Kira. I will push you to your limits. Expect no mercy.")
-            self.mika.speak("Hello! I'm Mika. I'm here to support you with all my heart.")
-            self.byte.speak("Um, hi... I'm Byte. I'll try my best to help with any questions.")
-            self.quip.speak("Hey there! Quip's the name, wit's the game. Ready for some fun?")
-            
-            # Wait for all introductions to complete
-            self.wait_for_completion()
-            log.info("All personality introductions completed.")
-            
-        except Exception as e:
-            log.error(f"An error occurred during personality introductions: {e}", exc_info=True)
 
     def speak(self, personality_name, text):
         """

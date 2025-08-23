@@ -33,7 +33,14 @@ def main():
 
         # --- Run Personality Introductions ---
         if voice_controller.is_available():
-            voice_controller.introduce_personalities()
+            log.info("Starting personality introductions...")
+            voice_controller.oracle.speak("Greetings. I am Oracle, keeper of wisdom and foresight.")
+            voice_controller.kira.speak("I am Kira. I will push you to your limits. Expect no mercy.")
+            voice_controller.mika.speak("Hello! I'm Mika. I'm here to support you with all my heart.")
+            voice_controller.byte.speak("Um, hi... I'm Byte. I'll try my best to help with any questions.")
+            voice_controller.quip.speak("Hey there! Quip's the name, wit's the game. Ready for some fun?")
+            voice_controller.wait_for_completion()
+            log.info("All personality introductions completed.")
             log.info("The Syndicate is ready to assist.")
         else:
             log.warning("Voice system is not available. Continuing in silent mode.")
