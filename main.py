@@ -34,11 +34,11 @@ def main():
         # --- Run Personality Introductions ---
         if voice_controller.is_available():
             log.info("Starting personality introductions...")
-            voice_controller.oracle.speak("Greetings. I am Oracle, keeper of wisdom and foresight.")
-            voice_controller.kira.speak("I am Kira. I will push you to your limits. Expect no mercy.")
-            voice_controller.mika.speak("Hello! I'm Mika. I'm here to support you with all my heart.")
-            voice_controller.byte.speak("Um, hi... I'm Byte. I'll try my best to help with any questions.")
-            voice_controller.quip.speak("Hey there! Quip's the name, wit's the game. Ready for some fun?")
+            voice_controller.oracle.speak("The path ahead is long. I am Oracle. I will offer guidance, but the journey is yours to walk.")
+            voice_controller.kira.speak("You are weak. I am Kira. I will forge you into a weapon. Do not expect kindness.")
+            voice_controller.mika.speak("Hello, Master. I'm Mika. I'm here to help you in any way I can. Please don't hesitate to ask.")
+            voice_controller.byte.speak("Greetings. I am Byte. I have analyzed all potential risks. Please proceed with caution. I will monitor for threats.")
+            voice_controller.quip.speak("Well, look what we have here. Another challenger. I'm Quip. Try to keep up, if you can.")
             voice_controller.wait_for_completion()
             log.info("All personality introductions completed.")
             log.info("The Syndicate is ready to assist.")
