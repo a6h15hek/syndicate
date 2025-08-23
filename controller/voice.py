@@ -1,219 +1,125 @@
 import os
-import sys
-from datetime import datetime
-from processor.tts_synthesizer import PersonalityVoiceManager
+import logging
+import time
+from processor.tts_synthesizer import PersonalityVoiceSynthesizer
 
-# --- Configuration ---
-# All configuration and environment variable loading is handled in main.py
-LOG_FILE = "logs/voice_log.txt"
+# --- Setup Logging ---
+log = logging.getLogger(__name__)
 
-# --- Advanced Voice Settings from .env ---
-TTS_ENABLED = os.getenv("TTS_ENABLED", "true").lower() == "true"
-TTS_DEVICE = os.getenv("TTS_DEVICE")
-TTS_INTRODUCTION_ENABLED = os.getenv("TTS_INTRODUCTION_ENABLED", "true").lower() == "true"
-
-class VoiceSystemManager:
+class VoiceController:
     """
-    Manager class for the voice system that handles initialization,
-    logging, and provides a clean interface to the personality voices.
+    Manages the Text-to-Speech (TTS) system, providing a clean interface
+    for making different personalities speak. It handles the initialization
+    of the synthesizer and provides access to individual personality voices.
     """
-    
+
     def __init__(self):
-        """Initialize the voice system manager."""
-        self.voice_manager = None
-        self.log_file = LOG_FILE
-        self._init_logging()
+        """Initializes the VoiceController."""
+        log.info("Initializing Voice Controller...")
         
-        if TTS_ENABLED:
+        # --- Configuration from .env ---
+        self.tts_enabled = os.getenv("TTS_ENABLED", "true").lower() == "true"
+        self.introductions_enabled = os.getenv("TTS_INTRODUCTION_ENABLED", "true").lower() == "true"
+        device_id = os.getenv("TTS_DEVICE")
+
+        self.synthesizer = None
+        if self.tts_enabled:
             try:
-                self._init_voice_system()
+                self.synthesizer = PersonalityVoiceSynthesizer(device=device_id)
+                self._create_personality_voices()
+                log.info("Voice Controller initialized successfully.")
             except Exception as e:
-                self._log_error(f"Failed to initialize voice system: {e}")
-                print(f"[ERROR] Voice system initialization failed: {e}", file=sys.stderr)
-                self.voice_manager = None
+                log.error(f"Failed to initialize the TTS synthesizer: {e}", exc_info=True)
         else:
-            self._log_info("TTS disabled in configuration")
-            print("[INFO] TTS disabled in configuration.")
+            log.info("TTS is disabled. Voice Controller will operate in silent mode.")
 
-    def _init_logging(self):
-        """Initialize logging for voice system."""
-        os.makedirs(os.path.dirname(self.log_file), exist_ok=True)
-        self._log_info("Voice system logging initialized")
+    def _create_personality_voices(self):
+        """Creates individual voice objects for each personality."""
+        self.kira = PersonalityVoice('kira', self)
+        self.mika = PersonalityVoice('mika', self)
+        self.oracle = PersonalityVoice('oracle', self)
+        self.byte = PersonalityVoice('byte', self)
+        self.quip = PersonalityVoice('quip', self)
+        log.debug("Individual personality voice objects created.")
 
-    def _init_voice_system(self):
-        """Initialize the personality voice system."""
-        device_id = None
-        if TTS_DEVICE:
-            try:
-                device_id = int(TTS_DEVICE)
-                print(f"[INFO] Using configured TTS_DEVICE: {device_id}")
-            except (ValueError, TypeError):
-                self._log_warning(f"Invalid TTS_DEVICE value: {TTS_DEVICE}, using default")
-                print(f"[WARNING] Invalid TTS_DEVICE value: '{TTS_DEVICE}'. Using default audio device.")
-        
-        self.voice_manager = PersonalityVoiceManager(device=device_id)
-        self._log_info("Personality voice system initialized successfully")
-
-    def _log_message(self, level, message):
-        """Log a message with timestamp."""
-        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        log_entry = f"[{timestamp}] [{level}] {message}"
-        
-        try:
-            with open(self.log_file, "a") as log_file:
-                log_file.write(log_entry + "\n")
-        except Exception as e:
-            print(f"[ERROR] Failed to write to log: {e}", file=sys.stderr)
-
-    def _log_info(self, message):
-        """Log an info message."""
-        self._log_message("INFO", message)
-
-    def _log_warning(self, message):
-        """Log a warning message."""
-        self._log_message("WARNING", message)
-
-    def _log_error(self, message):
-        """Log an error message."""
-        self._log_message("ERROR", message)
+    def is_available(self):
+        """Checks if the TTS system is available and ready."""
+        return self.synthesizer is not None
 
     def introduce_personalities(self):
-        """Have all personalities introduce themselves."""
-        if not self.voice_manager:
-            self._log_warning("Voice system not available for introductions")
-            print("[WARNING] Voice system not available for introductions.")
-            return False
+        """Has all personalities introduce themselves sequentially."""
+        if not self.is_available():
+            log.warning("Cannot run introductions; TTS system is not available.")
+            return
 
-        if not TTS_INTRODUCTION_ENABLED:
-            self._log_info("Personality introductions disabled in configuration")
-            print("[INFO] Personality introductions disabled in configuration.")
-            return True
-
-        try:
-            self._log_info("Starting personality introductions")
-            self.voice_manager.introduce_all()
-            self._log_info("Personality introductions completed successfully")
-            return True
-        except Exception as e:
-            self._log_error(f"Failed during personality introductions: {e}")
-            print(f"[ERROR] Failed during personality introductions: {e}", file=sys.stderr)
-            return False
-
-    def get_personality_voices(self):
-        """
-        Get individual personality voice objects for direct access.
-        
-        Returns:
-            dict: Dictionary containing personality voice objects, or None if not available
-        """
-        if not self.voice_manager:
-            return None
+        if not self.introductions_enabled:
+            log.info("Personality introductions are disabled in the configuration.")
+            return
             
-        return {
-            'kira': self.voice_manager.kira,
-            'mika': self.voice_manager.mika,
-            'oracle': self.voice_manager.oracle,
-            'byte': self.voice_manager.byte,
-            'quip': self.voice_manager.quip
-        }
-
-    def is_voice_system_available(self):
-        """Check if the voice system is available and ready."""
-        return self.voice_manager is not None
-
-    def speak_as_personality(self, personality_name, text):
-        """
-        Make a specific personality speak the given text.
+        log.info("Starting personality introductions...")
         
+        try:
+            # Introductions are queued and will play sequentially
+            self.oracle.speak("Greetings. I am Oracle, keeper of wisdom and foresight.")
+            self.kira.speak("I am Kira. I will push you to your limits. Expect no mercy.")
+            self.mika.speak("Hello! I'm Mika. I'm here to support you with all my heart.")
+            self.byte.speak("Um, hi... I'm Byte. I'll try my best to help with any questions.")
+            self.quip.speak("Hey there! Quip's the name, wit's the game. Ready for some fun?")
+            
+            # Wait for all introductions to complete
+            self.wait_for_completion()
+            log.info("All personality introductions completed.")
+            
+        except Exception as e:
+            log.error(f"An error occurred during personality introductions: {e}", exc_info=True)
+
+    def speak(self, personality_name, text):
+        """
+        Makes a specific personality speak the given text.
+
         Args:
-            personality_name (str): Name of the personality (kira, mika, oracle, byte, quip)
-            text (str): Text to speak
-            
-        Returns:
-            bool: True if successful, False otherwise
+            personality_name (str): The name of the personality.
+            text (str): The text to be spoken.
         """
-        if not self.voice_manager:
-            self._log_warning(f"Voice system not available for {personality_name}")
-            return False
+        if not self.is_available():
+            log.warning(f"TTS not available. Cannot speak as {personality_name}.")
+            return
+            
+        if not hasattr(self, personality_name):
+            log.error(f"Unknown personality: {personality_name}")
+            return
 
-        try:
-            personality_voices = self.get_personality_voices()
-            if personality_name.lower() in personality_voices:
-                personality_voice = personality_voices[personality_name.lower()]
-                personality_voice.speak(text)
-                self._log_info(f"{personality_name} spoke: {text}")
-                return True
-            else:
-                self._log_error(f"Unknown personality: {personality_name}")
-                return False
-        except Exception as e:
-            self._log_error(f"Failed to make {personality_name} speak: {e}")
-            return False
+        log.info(f"Queuing speech for {personality_name.upper()}: '{text}'")
+        self.synthesizer.speak(text, personality_name)
 
     def wait_for_completion(self):
-        """Wait for all queued speech to complete."""
-        if self.voice_manager:
-            try:
-                self.voice_manager.synthesizer.wait_for_completion()
-            except Exception as e:
-                self._log_error(f"Error waiting for speech completion: {e}")
+        """Waits for all currently queued speech to finish playing."""
+        if self.is_available():
+            self.synthesizer.wait_for_completion()
 
     def shutdown(self):
-        """Shutdown the voice system."""
-        if self.voice_manager:
-            try:
-                self._log_info("Shutting down voice system")
-                self.voice_manager.shutdown()
-                self._log_info("Voice system shutdown complete")
-                print("[INFO] Voice system shutdown complete.")
-            except Exception as e:
-                self._log_error(f"Error during voice system shutdown: {e}")
-                print(f"[WARNING] Error during voice system shutdown: {e}", file=sys.stderr)
+        """Shuts down the TTS system gracefully."""
+        if self.is_available():
+            log.info("Shutting down the voice controller and synthesizer.")
+            self.synthesizer.shutdown()
         else:
-            self._log_info("Voice system was not initialized, nothing to shutdown")
+            log.info("Voice controller was not initialized, nothing to shut down.")
 
 
-def initialize_voice_system():
+class PersonalityVoice:
     """
-    Initialize and return the voice system manager.
-    This function provides the main entry point for the voice system.
-    
-    Returns:
-        VoiceSystemManager: Initialized voice system manager
+    A simple wrapper class representing an individual personality's voice,
+    providing a clean `speak()` method.
     """
-    print("[INFO] Initializing Syndicate Voice System...")
-    
-    try:
-        voice_system = VoiceSystemManager()
-        
-        if voice_system.is_voice_system_available():
-            print("[INFO] Syndicate Voice System initialized successfully.")
-            return voice_system
-        else:
-            print("[WARNING] Voice system initialized but TTS is not available.")
-            return voice_system
-            
-    except Exception as e:
-        print(f"[ERROR] Failed to initialize voice system: {e}", file=sys.stderr)
-        return None
+    def __init__(self, name, controller):
+        self.name = name
+        self.controller = controller
 
+    def speak(self, text):
+        """
+        Makes this personality speak the given text.
 
-def run_personality_introductions(voice_system):
-    """
-    Run the personality introductions using the provided voice system.
-    
-    Args:
-        voice_system (VoiceSystemManager): The voice system manager
-        
-    Returns:
-        bool: True if successful, False otherwise
-    """
-    if not voice_system:
-        print("[WARNING] No voice system available for introductions.")
-        return False
-
-    if voice_system.is_voice_system_available():
-        return voice_system.introduce_personalities()
-    else:
-        print("[INFO] Voice system not available - introductions skipped.")
-        return True # Not an error, just not available
+        Args:
+            text (str): The text to speak.
+        """
+        self.controller.speak(self.name, text)
