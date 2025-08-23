@@ -52,7 +52,7 @@ def main():
         # --- Start Main Application Loop ---
         # The speech controller will handle user interaction.
         # We can pass the voice_controller to it if needed, but for now we assume it's a singleton or handled elsewhere.
-        speech.start_listening()
+        # speech.start_listening()
 
     except KeyboardInterrupt:
         log.info("Application interrupted by user. Shutting down...")
