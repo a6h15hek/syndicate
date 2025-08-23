@@ -2,8 +2,10 @@ import logging
 import sys
 from dotenv import load_dotenv
 
-# --- Early initialization to load environment variables ---
-load_dotenv()
+# Specify the path to your custom environment file
+# In this case, it's a file named 'tuner' in the same directory
+env_path = 'tuner.conf'
+load_dotenv(dotenv_path=env_path)
 
 # --- Setup Centralized Logging ---
 # Configure logging to capture messages from all modules

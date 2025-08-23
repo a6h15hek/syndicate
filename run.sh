@@ -17,17 +17,17 @@ echo_success() {
 }
 
 # --- Load Environment Variables ---
-# Check for the .env file and load its variables. This is crucial for configuration.
-if [ -f .env ]; then
-    echo_info "Loading environment variables from .env file..."
-    # Export the variables from .env to be available to this script
-    export $(cat .env | sed 's/#.*//g' | xargs)
+# Check for the tuner.conf file and load its variables. This is crucial for configuration.
+if [ -f tuner.conf ]; then
+    echo_info "Loading environment variables from tuner.conf file..."
+    # Export the variables from tuner.conf to be available to this script
+    export $(cat tuner.conf | sed 's/#.*//g' | xargs)
 else
-    echo_error ".env file not found. Please create one with VOSK_MODEL_PATH and VOSK_MODEL_URL."
+    echo_error "tuner.conf file not found. Please create one with VOSK_MODEL_PATH and VOSK_MODEL_URL."
     exit 1
 fi
 
-# --- Configuration (from .env) ---
+# --- Configuration (from tuner.conf) ---
 PYTHON_CMD="python3"
 VENV_DIR="venv"
 PYTHON_SCRIPT="main.py"
@@ -196,7 +196,7 @@ echo_success "Vosk model found at '$MODEL_DIR'."
 echo_info "Testing TTS availability..."
 python3 -c "
 import os
-os.environ['TTS_CACHE'] = '$TTS_CACHE_DIR'
+ostuner.confiron['TTS_CACHE'] = '$TTS_CACHE_DIR'
 tts_available = False
 
 # Test Coqui TTS
