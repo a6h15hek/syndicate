@@ -46,8 +46,10 @@ class VoiceSystemManager:
         if TTS_DEVICE:
             try:
                 device_id = int(TTS_DEVICE)
+                print(f"[INFO] Using configured TTS_DEVICE: {device_id}")
             except (ValueError, TypeError):
                 self._log_warning(f"Invalid TTS_DEVICE value: {TTS_DEVICE}, using default")
+                print(f"[WARNING] Invalid TTS_DEVICE value: '{TTS_DEVICE}'. Using default audio device.")
         
         self.voice_manager = PersonalityVoiceManager(device=device_id)
         self._log_info("Personality voice system initialized successfully")
@@ -209,33 +211,9 @@ def run_personality_introductions(voice_system):
     if not voice_system:
         print("[WARNING] No voice system available for introductions.")
         return False
-        
-    print("[INFO] Starting personality introductions...")
-    
+
     if voice_system.is_voice_system_available():
-        # Get individual personality voices for the requested format
-        personalities = voice_system.get_personality_voices()
-        
-        if personalities:
-            try:
-                # Execute the specific introduction format requested
-                personalities['kira'].speak("Hello, I'm Kira. How can I assist you today?")
-                personalities['mika'].speak("Hello, I'm Mika. How can I assist you today?")
-                personalities['oracle'].speak("Hello, I'm Oracle. How can I assist you today?")
-                personalities['byte'].speak("Hello, I'm Byte. How can I assist you today?")
-                personalities['quip'].speak("Hello, I'm Quip. How can I assist you today?")
-                
-                # Wait for all introductions to complete
-                voice_system.wait_for_completion()
-                print("[INFO] All personality introductions completed.")
-                return True
-                
-            except Exception as e:
-                print(f"[ERROR] Error during introductions: {e}", file=sys.stderr)
-                return False
-        else:
-            print("[WARNING] Could not access personality voices.")
-            return False
+        return voice_system.introduce_personalities()
     else:
         print("[INFO] Voice system not available - introductions skipped.")
-        return True  # Not an error, just not available
+        return True # Not an error, just not available

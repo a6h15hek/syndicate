@@ -50,13 +50,29 @@ class PersonalityVoiceSynthesizer:
             device (int, optional): Output device ID. Defaults to the system's default device.
         """
         # Get configuration from environment variables
-        self.device = device or os.getenv("TTS_DEVICE")
-        if self.device:
+        raw_device = device or os.getenv("TTS_DEVICE")
+        if raw_device:
             try:
-                self.device = int(self.device)
+                self.device = int(raw_device)
             except (ValueError, TypeError):
                 self.device = None
+        else:
+            self.device = None
         
+        # --- Debugging: Print audio settings and devices ---
+        print("\n--- TTS Audio Settings ---")
+        print(f"TTS Enabled: {os.getenv('TTS_ENABLED', 'true').lower() == 'true'}")
+        print(f"Preferred Engine: {os.getenv('TTS_ENGINE', 'auto').lower()}")
+        print(f"Fallback Engine: {os.getenv('TTS_FALLBACK_ENGINE', 'pyttsx3').lower()}")
+        print(f"Coqui TTS Available: {TTS_AVAILABLE}")
+        print(f"pyttsx3 Available: {PYTTSX3_AVAILABLE}")
+        print(f"gTTS Available: {GTTS_AVAILABLE}")
+        print(f"Configured Audio Device (TTS_DEVICE): {os.getenv('TTS_DEVICE')}")
+        print(f"Using Audio Device ID: {'System Default' if self.device is None else self.device}")
+        self._list_audio_devices()
+        print("--- End of Audio Settings ---\n")
+        # --- End of Debugging ---
+
         self.tts_model = None
         self.tts_enabled = os.getenv("TTS_ENABLED", "true").lower() == "true"
         self.tts_available = (TTS_AVAILABLE or PYTTSX3_AVAILABLE or GTTS_AVAILABLE) and self.tts_enabled
@@ -126,6 +142,25 @@ class PersonalityVoiceSynthesizer:
         self.is_playing = False
         self._start_playback_thread()
 
+    def _list_audio_devices(self):
+        """Lists all available audio output devices for debugging."""
+        print("Available Audio Output Devices:")
+        try:
+            devices = sd.query_devices()
+            found_device = False
+            for i, device in enumerate(devices):
+                # Check if it's an output device
+                if device['max_output_channels'] > 0:
+                    # Check for default device
+                    is_default = (i == sd.default.device[1])
+                    default_str = " (Default)" if is_default else ""
+                    print(f"  ID {i}: {device['name']}{default_str}")
+                    found_device = True
+            if not found_device:
+                print("  No audio output devices found.")
+        except Exception as e:
+            print(f"[WARNING] Could not list audio devices: {e}", file=sys.stderr)
+
     def _init_tts_model(self):
         """Initialize the TTS model with error handling and fallback options."""
         if not self.tts_available:
@@ -139,12 +174,12 @@ class PersonalityVoiceSynthesizer:
             
             if self.preferred_engine == "auto":
                 # Auto mode: try in order of reliability
+                if TTS_AVAILABLE:
+                    engines_to_try.append("coqui")
                 if PYTTSX3_AVAILABLE:
                     engines_to_try.append("pyttsx3")
                 if GTTS_AVAILABLE:
                     engines_to_try.append("gtts")
-                if TTS_AVAILABLE:
-                    engines_to_try.append("coqui")
             elif self.preferred_engine in ["pyttsx3", "gtts", "coqui"]:
                 engines_to_try.append(self.preferred_engine)
                 # Add fallback if different from preferred
@@ -216,6 +251,7 @@ class PersonalityVoiceSynthesizer:
                     break
                 
                 self.is_playing = True
+                print(f"[DEBUG] Playing audio on device: {'System Default' if self.device is None else self.device} (Sample Rate: {samplerate})")
                 sd.play(audio_data, samplerate=samplerate, device=self.device)
                 sd.wait()  # Wait until playback is finished
                 self.is_playing = False
@@ -343,6 +379,9 @@ class PersonalityVoiceSynthesizer:
                 return None, None
 
             audio_data, samplerate = librosa.load(temp_path, sr=None)
+            # Ensure data is in float32 format to prevent librosa effect errors
+            audio_data = audio_data.astype(np.float32)
+            
             os.unlink(temp_path)
 
             # Apply pitch shift only if audio exists
