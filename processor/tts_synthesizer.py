@@ -72,6 +72,9 @@ class PersonalityVoiceSynthesizer:
         os.environ['TTS_HOME'] = tts_cache_dir
         os.makedirs(tts_cache_dir, exist_ok=True)
         
+        # --- Personality Voice Customization ---
+        self.personality_configs = self._load_personality_configs()
+
         self.tts_model = None
         self.tts_engine_type = "none"
         
@@ -80,14 +83,12 @@ class PersonalityVoiceSynthesizer:
         else:
             log.info("TTS is disabled in the configuration. Voice synthesis will be simulated.")
 
-        # --- Personality Voice Customization ---
-        self.personality_configs = self._load_personality_configs()
-
         # --- Audio Playback Queue ---
         self.audio_queue = queue.Queue()
         self.playback_thread = None
         self.is_playing = threading.Event()
         self._start_playback_thread()
+        self._warmup_audio_device()
         log.info("PersonalityVoiceSynthesizer initialized.")
 
     def _load_personality_configs(self):
@@ -178,22 +179,54 @@ class PersonalityVoiceSynthesizer:
 
     def _warmup_engine(self):
         """
-        Performs a "warm-up" synthesis to initialize all components of the TTS engine.
-        This helps prevent a delay or audio artifacts on the first real speech request.
+        Performs a "warm-up" synthesis for all configured speakers to prevent
+        a delay or audio artifacts on the first real speech request for each voice.
         """
         if self.tts_engine_type == "coqui":
             try:
-                log.info("Warming up Coqui TTS engine...")
-                # Synthesize a short, silent phrase using a default speaker to initialize all layers.
-                # The VCTK model has a 'p225' speaker which is a safe default.
-                if self.tts_model.is_multi_speaker:
-                    # Use a known speaker from the VCTK model to ensure speaker embedding layers are initialized.
-                    self.tts_model.tts(text=" ", speaker="p225")
-                else:
-                    self.tts_model.tts(text=" ")
-                log.info("TTS engine is warm and ready.")
+                if not self.tts_model.is_multi_speaker:
+                    log.info("Warming up Coqui TTS engine (single speaker model)...")
+                    self.tts_model.tts(text="Hello.")
+                    log.info("TTS engine is warm and ready.")
+                    return
+
+                log.info("Warming up Coqui TTS engine for all configured speakers...")
+                speakers_to_warmup = {
+                    config['speaker'] for config in self.personality_configs.values() if config.get('speaker')
+                }
+
+                if not speakers_to_warmup:
+                    log.warning("No speakers defined in personality configs. Performing default warm-up.")
+                    self.tts_model.tts(text="Hello.", speaker="p225") # Use a known safe default
+                    return
+
+                for speaker in speakers_to_warmup:
+                    log.info(f"Warming up speaker: {speaker}...")
+                    self.tts_model.tts(text="Hello.", speaker=speaker)
+                
+                log.info("All configured speakers are warm and ready.")
             except Exception as e:
                 log.warning(f"An error occurred during TTS engine warm-up: {e}")
+
+    def _warmup_audio_device(self):
+        """
+        Plays a short, silent audio clip to initialize the audio stream.
+        This helps prevent a 'click' or 'pop' on the first real playback by
+        "warming up" the sounddevice library and the OS audio backend.
+        """
+        if not self.tts_enabled:
+            return
+        try:
+            log.info("Warming up audio playback device...")
+            # A common sample rate; the exact value isn't critical.
+            samplerate = 22050
+            # A 50ms clip of silence is enough to initialize the stream.
+            silence = np.zeros(int(samplerate * 0.05), dtype=np.float32)
+            sd.play(silence, samplerate=samplerate, device=self.device)
+            sd.wait()
+            log.info("Audio playback device is warm.")
+        except Exception as e:
+            log.warning(f"Could not warm up audio device: {e}")
 
     def _start_playback_thread(self):
         """Starts the dedicated audio playback thread."""
@@ -233,9 +266,9 @@ class PersonalityVoiceSynthesizer:
             return audio_data
         try:
             log.debug(f"Applying pitch shift of {pitch_steps} steps.")
-            # Ensure data is a C-contiguous float array for librosa to prevent dtype errors.
-            y_pitch = np.ascontiguousarray(audio_data, dtype=np.float32)
-            return librosa.effects.pitch_shift(y_pitch, sr=samplerate, n_steps=pitch_steps)
+            # Validate the audio buffer to ensure it's a C-contiguous, float32, mono numpy array.
+            y_validated = librosa.util.valid_audio(audio_data, mono=True)
+            return librosa.effects.pitch_shift(y_validated, sr=samplerate, n_steps=pitch_steps)
         except Exception as e:
             log.warning(f"Could not apply pitch shift: {e}")
             return audio_data
