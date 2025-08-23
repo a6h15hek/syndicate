@@ -227,6 +227,9 @@ class PersonalityVoiceSynthesizer:
                 self.is_playing = False
 
     def _apply_voice_effects(self, audio_data, samplerate, config):
+        if audio_data is None or audio_data.size == 0:
+            print(f"[WARNING] Received empty audio data. Skipping voice effects.", file=sys.stderr)
+            return audio_data
         """
         Apply voice effects based on personality configuration.
         
@@ -302,85 +305,83 @@ class PersonalityVoiceSynthesizer:
             return None, None
 
     def _generate_coqui_speech(self, text, config):
-        """Generate speech using Coqui TTS."""
-        # Create temporary file for audio output
-        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
-            temp_path = temp_file.name
-
-        # Generate speech with TTS
-        self.tts_model.tts_to_file(text=text, file_path=temp_path)
-
-        # Load the generated audio
-        audio_data, samplerate = librosa.load(temp_path, sr=None)
-        
-        # Apply personality-specific voice effects
-        audio_data = self._apply_voice_effects(audio_data, samplerate, config)
-        
-        # Cleanup temporary file
-        os.unlink(temp_path)
-        
-        return audio_data, samplerate
+        try:
+            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
+                temp_path = temp_file.name
+    
+            self.tts_model.tts_to_file(text=text, file_path=temp_path)
+            
+            # Verify file was created
+            if not os.path.exists(temp_path) or os.path.getsize(temp_path) == 0:
+                print(f"[ERROR] Coqui TTS generated empty file for: {text}")
+                return None, None
+                
+            audio_data, samplerate = librosa.load(temp_path, sr=None)
+            os.unlink(temp_path)
+            
+            # Apply effects only if audio exists
+            if audio_data.size > 0:
+                audio_data = self._apply_voice_effects(audio_data, samplerate, config)
+            
+            return audio_data, samplerate
+            
+        except Exception as e:
+            print(f"[ERROR] Coqui TTS failed: {e}")
+            return None, None
 
     def _generate_pyttsx3_speech(self, text, config):
-        """Generate speech using pyttsx3."""
-        # Configure voice properties
-        voices = self.tts_model.getProperty('voices')
-        if voices:
-            # Try to select appropriate voice based on personality
-            if 'mika' in config and len(voices) > 1:
-                self.tts_model.setProperty('voice', voices[1].id)  # Often female voice
-            else:
-                self.tts_model.setProperty('voice', voices[0].id)  # Default male voice
-        
-        # Set speech rate based on personality
-        base_rate = self.tts_model.getProperty('rate')
-        new_rate = int(base_rate * config['speed'] * self.global_speed_multiplier)
-        self.tts_model.setProperty('rate', new_rate)
-        
-        # Create temporary file
-        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
-            temp_path = temp_file.name
-        
-        # Save to file
-        self.tts_model.save_to_file(text, temp_path)
-        self.tts_model.runAndWait()
-        
-        # Load the generated audio
-        audio_data, samplerate = librosa.load(temp_path, sr=None)
-        
-        # Apply personality-specific voice effects (pitch only, speed already applied)
-        if config['pitch_shift'] != 0:
-            audio_data = librosa.effects.pitch_shift(
-                audio_data, sr=samplerate, n_steps=config['pitch_shift']
-            )
-        
-        # Cleanup temporary file
-        os.unlink(temp_path)
-        
-        return audio_data, samplerate
+        try:
+            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
+                temp_path = temp_file.name
+
+            self.tts_model.save_to_file(text, temp_path)
+            self.tts_model.runAndWait()
+
+            # Verify file was created
+            if not os.path.exists(temp_path) or os.path.getsize(temp_path) == 0:
+                print(f"[ERROR] pyttsx3 generated empty file for: {text}")
+                return None, None
+
+            audio_data, samplerate = librosa.load(temp_path, sr=None)
+            os.unlink(temp_path)
+
+            # Apply pitch shift only if audio exists
+            if audio_data.size > 0 and config['pitch_shift'] != 0:
+                audio_data = librosa.effects.pitch_shift(
+                    audio_data, sr=samplerate, n_steps=config['pitch_shift']
+                )
+
+            return audio_data, samplerate
+
+        except Exception as e:
+            print(f"[ERROR] pyttsx3 failed: {e}")
+            return None, None
 
     def _generate_gtts_speech(self, text, config):
-        """Generate speech using gTTS."""
-        # Create gTTS object
-        tts = gTTS(text=text, lang='en', slow=config['speed'] < 1.0)
-        
-        # Create temporary file
-        with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as temp_file:
-            temp_path = temp_file.name
-        
-        # Save to file
-        tts.save(temp_path)
-        
-        # Load the generated audio (librosa can handle mp3)
-        audio_data, samplerate = librosa.load(temp_path, sr=None)
-        
-        # Apply personality-specific voice effects
-        audio_data = self._apply_voice_effects(audio_data, samplerate, config)
-        
-        # Cleanup temporary file
-        os.unlink(temp_path)
-        
-        return audio_data, samplerate
+        try:
+            with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as temp_file:
+                temp_path = temp_file.name
+            
+            tts = gTTS(text=text, lang='en', slow=config['speed'] < 1.0)
+            tts.save(temp_path)
+            
+            # Verify file was created
+            if not os.path.exists(temp_path) or os.path.getsize(temp_path) == 0:
+                print(f"[ERROR] gTTS generated empty file for: {text}")
+                return None, None
+                
+            audio_data, samplerate = librosa.load(temp_path, sr=None)
+            os.unlink(temp_path)
+            
+            # Apply effects only if audio exists
+            if audio_data.size > 0:
+                audio_data = self._apply_voice_effects(audio_data, samplerate, config)
+            
+            return audio_data, samplerate
+            
+        except Exception as e:
+            print(f"[ERROR] gTTS failed: {e}")
+            return None, None
 
     def speak(self, text, personality):
         """
@@ -407,7 +408,11 @@ class PersonalityVoiceSynthesizer:
             # Add to playback queue
             self.audio_queue.put((audio_data, samplerate))
         else:
-            print(f"[ERROR] Failed to generate speech for {personality}", file=sys.stderr)
+            samplerate = 22050
+            duration = max(1.0, len(text.split()) * 0.3)  # Minimum 1 second
+            silence = np.zeros(int(samplerate * duration))
+            self.audio_queue.put((silence, samplerate))
+            print(f"[WARNING] Using silent fallback for {personality}")
 
     def wait_for_completion(self):
         """Wait for all queued audio to finish playing."""
