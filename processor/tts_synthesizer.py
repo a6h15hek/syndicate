@@ -156,6 +156,7 @@ class PersonalityVoiceSynthesizer:
             self.tts_model = TTS(model_name=self.tts_model_name, progress_bar=False, gpu=self.use_gpu)
             self.tts_engine_type = "coqui"
             log.info(f"Coqui TTS model '{self.tts_model_name}' initialized successfully.")
+            self._warmup_engine()
             return True
         except Exception as e:
             log.error(f"Failed to load Coqui TTS model '{self.tts_model_name}': {e}")
@@ -174,6 +175,25 @@ class PersonalityVoiceSynthesizer:
         except Exception as e:
             log.error(f"Failed to initialize pyttsx3: {e}")
             return False
+
+    def _warmup_engine(self):
+        """
+        Performs a "warm-up" synthesis to initialize all components of the TTS engine.
+        This helps prevent a delay or audio artifacts on the first real speech request.
+        """
+        if self.tts_engine_type == "coqui":
+            try:
+                log.info("Warming up Coqui TTS engine...")
+                # Synthesize a short, silent phrase using a default speaker to initialize all layers.
+                # The VCTK model has a 'p225' speaker which is a safe default.
+                if self.tts_model.is_multi_speaker:
+                    # Use a known speaker from the VCTK model to ensure speaker embedding layers are initialized.
+                    self.tts_model.tts(text=" ", speaker="p225")
+                else:
+                    self.tts_model.tts(text=" ")
+                log.info("TTS engine is warm and ready.")
+            except Exception as e:
+                log.warning(f"An error occurred during TTS engine warm-up: {e}")
 
     def _start_playback_thread(self):
         """Starts the dedicated audio playback thread."""
@@ -213,7 +233,9 @@ class PersonalityVoiceSynthesizer:
             return audio_data
         try:
             log.debug(f"Applying pitch shift of {pitch_steps} steps.")
-            return librosa.effects.pitch_shift(audio_data, sr=samplerate, n_steps=pitch_steps)
+            # Ensure data is a C-contiguous float array for librosa to prevent dtype errors.
+            y_pitch = np.ascontiguousarray(audio_data, dtype=np.float32)
+            return librosa.effects.pitch_shift(y_pitch, sr=samplerate, n_steps=pitch_steps)
         except Exception as e:
             log.warning(f"Could not apply pitch shift: {e}")
             return audio_data
