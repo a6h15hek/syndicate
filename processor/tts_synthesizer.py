@@ -72,9 +72,6 @@ class PersonalityVoiceSynthesizer:
         os.environ['TTS_HOME'] = tts_cache_dir
         os.makedirs(tts_cache_dir, exist_ok=True)
         
-        # --- Personality Voice Customization ---
-        self.personality_configs = self._load_personality_configs()
-
         self.tts_model = None
         self.tts_engine_type = "none"
         
@@ -83,29 +80,12 @@ class PersonalityVoiceSynthesizer:
         else:
             log.info("TTS is disabled in the configuration. Voice synthesis will be simulated.")
 
-        # --- Audio Playback Queue ---
         self.audio_queue = queue.Queue()
         self.playback_thread = None
         self.is_playing = threading.Event()
         self._start_playback_thread()
         self._warmup_audio_device()
         log.info("PersonalityVoiceSynthesizer initialized.")
-
-    def _load_personality_configs(self):
-        """Loads voice configurations for all personalities from environment variables."""
-        personalities = ['kira', 'mika', 'oracle', 'byte', 'quip']
-        configs = {}
-        for p in personalities:
-            p_upper = p.upper()
-            configs[p] = {
-                'speaker': os.getenv(f"PERSONALITY_SPEAKER_{p_upper}"),
-                'speed': float(os.getenv(f"PERSONALITY_VOICE_SPEED_{p_upper}", "1.0")),
-                'pitch': int(os.getenv(f"PERSONALITY_VOICE_PITCH_{p_upper}", "0")),
-                'description': f'{p.capitalize()} personality voice'
-            }
-            if not configs[p]['speaker']:
-                log.warning(f"Speaker for personality '{p}' is not defined in .env. Coqui TTS may fail.")
-        return configs
 
     def _log_audio_device_info(self):
         """Logs information about the audio devices and configuration."""
@@ -157,7 +137,6 @@ class PersonalityVoiceSynthesizer:
             self.tts_model = TTS(model_name=self.tts_model_name, progress_bar=False, gpu=self.use_gpu)
             self.tts_engine_type = "coqui"
             log.info(f"Coqui TTS model '{self.tts_model_name}' initialized successfully.")
-            self._warmup_engine()
             return True
         except Exception as e:
             log.error(f"Failed to load Coqui TTS model '{self.tts_model_name}': {e}")
@@ -176,37 +155,6 @@ class PersonalityVoiceSynthesizer:
         except Exception as e:
             log.error(f"Failed to initialize pyttsx3: {e}")
             return False
-
-    def _warmup_engine(self):
-        """
-        Performs a "warm-up" synthesis for all configured speakers to prevent
-        a delay or audio artifacts on the first real speech request for each voice.
-        """
-        if self.tts_engine_type == "coqui":
-            try:
-                if not self.tts_model.is_multi_speaker:
-                    log.info("Warming up Coqui TTS engine (single speaker model)...")
-                    self.tts_model.tts(text="Hello.")
-                    log.info("TTS engine is warm and ready.")
-                    return
-
-                log.info("Warming up Coqui TTS engine for all configured speakers...")
-                speakers_to_warmup = {
-                    config['speaker'] for config in self.personality_configs.values() if config.get('speaker')
-                }
-
-                if not speakers_to_warmup:
-                    log.warning("No speakers defined in personality configs. Performing default warm-up.")
-                    self.tts_model.tts(text="Hello.", speaker="p225") # Use a known safe default
-                    return
-
-                for speaker in speakers_to_warmup:
-                    log.info(f"Warming up speaker: {speaker}...")
-                    self.tts_model.tts(text="Hello.", speaker=speaker)
-                
-                log.info("All configured speakers are warm and ready.")
-            except Exception as e:
-                log.warning(f"An error occurred during TTS engine warm-up: {e}")
 
     def _warmup_audio_device(self):
         """
@@ -273,7 +221,7 @@ class PersonalityVoiceSynthesizer:
             log.warning(f"Could not apply pitch shift: {e}")
             return audio_data
 
-    def _generate_speech(self, text, personality):
+    def _generate_speech(self, text, personality, config):
         """
         Generates speech audio for the given text and personality.
         This method dispatches to the appropriate engine-specific function.
@@ -283,8 +231,6 @@ class PersonalityVoiceSynthesizer:
             duration = len(text.split()) * 0.3  # Rough estimate
             return np.zeros(int(16000 * duration)), 16000
 
-        config = self.personality_configs[personality]
-        
         try:
             if self.tts_engine_type == "coqui":
                 return self._generate_coqui_speech(text, config)
@@ -339,21 +285,17 @@ class PersonalityVoiceSynthesizer:
         
         return audio_data, samplerate
 
-    def speak(self, text, personality):
+    def speak(self, text, personality, config):
         """
         Queues a text-to-speech request. The actual synthesis and playback
         happen in background threads to avoid blocking.
         """
         if not text or not text.strip():
             return
-        if personality not in self.personality_configs:
-            log.error(f"Unknown personality: {personality}")
-            return
 
         log.info(f"Received speech request for {personality.upper()}. Synthesizing...")
         
-        # Generate speech audio
-        audio_data, samplerate = self._generate_speech(text, personality)
+        audio_data, samplerate = self._generate_speech(text, personality, config)
         
         if audio_data is not None and audio_data.size > 0:
             log.debug(f"Speech for '{text}' synthesized successfully. Adding to playback queue.")
